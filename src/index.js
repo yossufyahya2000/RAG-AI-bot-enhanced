@@ -17,16 +17,16 @@ const app = express();
 // Configure multer to store files in uploads directory
 const storage = multer.diskStorage({
   destination: function (req, file, cb) {
-    if (!fs.existsSync('uploads')) {
-      fs.mkdirSync('uploads');
+    const uploadPath = '/tmp/uploads';
+    if (!fs.existsSync(uploadPath)) {
+      fs.mkdirSync(uploadPath, { recursive: true });
     }
-    cb(null, 'uploads/');
+    cb(null, uploadPath);
   },
   filename: function (req, file, cb) {
     cb(null, file.originalname);
   }
 });
-//
 
 const upload = multer({ storage: storage });
 
@@ -97,8 +97,8 @@ app.post('/upload', upload.array('pdf'), async (req, res) => {
             totalPages += docs.length;
 
             // Clean up uploaded file after processing
-            fs.unlinkSync(file.path);
-        }
+            fs.unlinkSync(join('/tmp/uploads', file.originalname));
+          }
 
         console.log('Updating vector store...');
         // Create or update vector store with all documents
