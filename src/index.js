@@ -66,34 +66,42 @@ app.get('/', (req, res) => {
 });
 
 // Handle PDF upload
-app.post('/upload', upload.single('pdf'), async (req, res) => {
-  try {
-    const file = req.file;
-    if (!file) {
-      return res.status(400).json({ error: 'No PDF file uploaded' });
-    }
+app.post('/upload', upload.array('pdf'), async (req, res) => {
+    try {
+        const files = req.files;
+        if (!files || files.length === 0) {
+            return res.status(400).json({ error: 'No PDF files uploaded' });
+        }
 
-    console.log('Processing PDF:', file.path);
+    let totalPages = 0;
+    let allDocs = [];
 
-    // Load and process the PDF
-    const loader = new PDFLoader(file.path);
-    console.log('Loading PDF contents...');
-    const docs = await loader.load();
-    console.log(`Loaded ${docs.length} pages from PDF`);
+    for (const file of files) {
+        console.log('Processing PDF:', file.path);
 
-    if (docs.length === 0) {
-      throw new Error('No content extracted from PDF');
+        // Load and process the PDF
+        const loader = new PDFLoader(file.path);
+        console.log('Loading PDF contents...');
+        const docs = await loader.load();
+        console.log(`Loaded ${docs.length} pages from PDF`);
+
+        if (docs.length === 0) {
+            throw new Error(`No content extracted from PDF: ${file.originalname}`);
+        }
+
+        allDocs = [...allDocs, ...docs];
+        totalPages += docs.length;
+
+        // Clean up uploaded file after processing
+        fs.unlinkSync(file.path);
     }
 
     console.log('Creating vector store...');
-    // Create vector store from documents
-    vectorStore = await MemoryVectorStore.fromDocuments(docs, embeddings);
+    // Create vector store from all documents
+    vectorStore = await MemoryVectorStore.fromDocuments(allDocs, embeddings);
     console.log('Vector store created successfully');
 
-    // Clean up uploaded file after successful processing
-    fs.unlinkSync(file.path);
-
-    res.json({ message: 'PDF processed successfully', pages: docs.length });
+    res.json({ message: 'PDFs processed successfully', pages: totalPages });
   } catch (error) {
     console.error('Error processing PDF:', error);
     // Clean up file if there was an error

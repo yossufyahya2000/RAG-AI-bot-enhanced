@@ -11,13 +11,18 @@
         <h1>PDF RAG Chatbot</h1>
         
         <div class="upload-section">
-            <h2>Upload PDF</h2>
             <div class="file-upload" onclick="document.getElementById('pdfInput').click()">
-                <p>Drag & drop a PDF file here or click to upload</p>
-                <input type="file" id="pdfInput" accept=".pdf" style="display: none;" onchange="uploadPDF()">
+                <h2>Upload PDF</h2>
+                <p>Drag & drop PDF files here or click to upload</p>
+                <input type="file" id="pdfInput" accept=".pdf" multiple style="display: none;" onchange="uploadPDF()">
                 <div class="upload-loading" id="uploadLoading">
                     <div class="loading-spinner"></div>
                 </div>
+            </div>
+            <div class="download-section" id="downloadSection">
+                <h2>Uploaded Files</h2>
+                <div class="file-list" id="fileList"></div>
+                <button class="add-more-btn" onclick="showUploadSection()">Add More Files</button>
             </div>
         </div>
 
@@ -32,34 +37,86 @@
     </div>
 
     <script>
+        var uploadedFiles = [];
+
+        function showUploadSection() {
+            document.querySelector('.upload-section').style.display = 'block';
+            document.getElementById('downloadSection').style.display = 'none';
+            document.getElementById('pdfInput').value = ''; // Clear file input
+        }
+
+        function showDownloadSection() {
+            console.log('Showing download section');
+            const uploadSection = document.querySelector('.upload-section');
+            const downloadSection = document.getElementById('downloadSection');
+            // Keep the upload-section visible but hide the file-upload div
+            document.querySelector('.file-upload').style.display = 'none';
+            downloadSection.style.display = 'block';
+            document.getElementById('pdfInput').value = ''; // Clear file input
+
+        }
+
+        // Initialize with upload section visible
+        showUploadSection();
+
+        function renderFileList() {
+            const fileList = document.getElementById('fileList');
+            fileList.innerHTML = uploadedFiles.map(file => `
+                <div class="file-item">
+                    <span class="file-name">${file.name}</span>
+                    <span class="delete-icon" onclick="deleteFile('${file.name}')">🗑️</span>
+                </div>
+            `).join('');
+            
+            if (uploadedFiles.length === 0) {
+                showUploadSection();
+            }
+        }
+
+        function deleteFile(fileName) {
+            uploadedFiles = uploadedFiles.filter(file => file.name !== fileName);
+            renderFileList();
+            showUploadSection();
+        }
+
         async function uploadPDF() {
+            const loading = document.getElementById('uploadLoading');
             const fileInput = document.getElementById('pdfInput');
-            const file = fileInput.files[0];
-            if (!file) {
-                alert('Please select a PDF file');
+            const files = Array.from(fileInput.files);
+            
+            if (files.length === 0) {
+                alert('Please select at least one PDF file');
                 return;
             }
-
-            const loading = document.getElementById('uploadLoading');
+            
             loading.style.display = 'flex';
-
-            const formData = new FormData();
-            formData.append('pdf', file);
-
+            
             try {
+                const formData = new FormData();
+                files.forEach(file => formData.append('pdf', file));
+
                 const response = await fetch('/upload', {
                     method: 'POST',
                     body: formData
                 });
+                
                 const result = await response.json();
                 if (response.ok) {
-                    addMessage('PDF uploaded and processed successfully', 'bot');
+                    uploadedFiles = [...uploadedFiles, ...files];
+                    renderFileList();
+                    try {
+                        showDownloadSection();
+                        addMessage('PDFs uploaded and processed successfully', 'bot');
+                    } catch (error) {
+                        console.error('Error showing download section:', error);
+                        addMessage('Error showing uploaded files', 'bot');
+                    }
                 } else {
-                    addMessage('Error: ' + result.error, 'bot');
+                    throw new Error(result.error || 'Error uploading PDFs');
                 }
             } catch (error) {
                 console.error('Error:', error);
-                addMessage('Error uploading PDF', 'bot');
+                addMessage('Error uploading PDFs: ' + error.message, 'bot');
             } finally {
                 loading.style.display = 'none';
             }
