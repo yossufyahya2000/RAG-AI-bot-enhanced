@@ -54,8 +54,9 @@ class GeminiEmbeddings extends Embeddings {
 // Initialize embeddings
 const embeddings = new GeminiEmbeddings(genAI);
 
-// Initialize Vector Store
+// Initialize Vector Store and file data mapping
 let vectorStore;
+const fileDataMap = new Map();
 
 app.use(express.json());
 app.use(express.static('public'));
@@ -73,45 +74,79 @@ app.post('/upload', upload.array('pdf'), async (req, res) => {
             return res.status(400).json({ error: 'No PDF files uploaded' });
         }
 
-    let totalPages = 0;
-    let allDocs = [];
+        let totalPages = 0;
+        let allDocs = [];
 
-    for (const file of files) {
-        console.log('Processing PDF:', file.path);
+        for (const file of files) {
+            console.log('Processing PDF:', file.path);
 
-        // Load and process the PDF
-        const loader = new PDFLoader(file.path);
-        console.log('Loading PDF contents...');
-        const docs = await loader.load();
-        console.log(`Loaded ${docs.length} pages from PDF`);
+            // Load and process the PDF
+            const loader = new PDFLoader(file.path);
+            console.log('Loading PDF contents...');
+            const docs = await loader.load();
+            console.log(`Loaded ${docs.length} pages from PDF`);
 
-        if (docs.length === 0) {
-            throw new Error(`No content extracted from PDF: ${file.originalname}`);
+            if (docs.length === 0) {
+                throw new Error(`No content extracted from PDF: ${file.originalname}`);
+            }
+
+            // Store the document data with the filename as key
+            fileDataMap.set(file.originalname, docs);
+            allDocs = [...allDocs, ...docs];
+            totalPages += docs.length;
+
+            // Clean up uploaded file after processing
+            fs.unlinkSync(file.path);
         }
 
-        allDocs = [...allDocs, ...docs];
-        totalPages += docs.length;
+        console.log('Updating vector store...');
+        // Create or update vector store with all documents
+        if (vectorStore) {
+            await vectorStore.addDocuments(allDocs);
+        } else {
+            vectorStore = await MemoryVectorStore.fromDocuments(allDocs, embeddings);
+        }
+        console.log('Vector store updated successfully');
 
-        // Clean up uploaded file after processing
-        fs.unlinkSync(file.path);
+        res.json({ message: 'PDFs processed successfully', pages: totalPages });
+    } catch (error) {
+        console.error('Error processing PDF:', error);
+        // Clean up files if there was an error
+        if (req.files) {
+            req.files.forEach(file => {
+                if (fs.existsSync(file.path)) {
+                    fs.unlinkSync(file.path);
+                }
+            });
+        }
+        res.status(500).json({ error: error.message || 'Error processing PDF' });
     }
-
-    console.log('Creating vector store...');
-    // Create vector store from all documents
-    vectorStore = await MemoryVectorStore.fromDocuments(allDocs, embeddings);
-    console.log('Vector store created successfully');
-
-    res.json({ message: 'PDFs processed successfully', pages: totalPages });
-  } catch (error) {
-    console.error('Error processing PDF:', error);
-    // Clean up file if there was an error
-    if (req.file && fs.existsSync(req.file.path)) {
-      fs.unlinkSync(req.file.path);
-    }
-    res.status(500).json({ error: error.message || 'Error processing PDF' });
-  }
 });
 
+// Handle PDF deletion
+app.delete('/delete', async (req, res) => {
+    try {
+        const { filename } = req.body;
+        
+        if (!filename || !fileDataMap.has(filename)) {
+            return res.status(404).json({ error: 'File not found' });
+        }
+
+        // Remove from file data map
+        fileDataMap.delete(filename);
+
+        // Get all remaining documents from the map
+        const remainingDocs = Array.from(fileDataMap.values()).flat();
+
+        // Recreate vector store with remaining documents
+        vectorStore = await MemoryVectorStore.fromDocuments(remainingDocs, embeddings);
+
+        res.json({ message: `${filename} deleted successfully` });
+    } catch (error) {
+        console.error('Error deleting file:', error);
+        res.status(500).json({ error: 'Error deleting file' });
+    }
+});
 // Handle questions
 app.post('/ask', async (req, res) => {
   try {
@@ -121,7 +156,7 @@ app.post('/ask', async (req, res) => {
       return res.status(400).json({ error: 'Please upload a PDF first' });
     }
     
-    // Search for relevant documents
+    // Search for relevant documents across all files
     const relevantDocs = await vectorStore.similaritySearch(question, 3);
     
     // Create context from relevant documents

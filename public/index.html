@@ -22,7 +22,7 @@
             <div class="download-section" id="downloadSection">
                 <h2>Uploaded Files</h2>
                 <div class="file-list" id="fileList"></div>
-                <button class="add-more-btn" onclick="showUploadSection()">Add More Files</button>
+                <button class="add-more-btn" onclick="document.getElementById('pdfInput').click()">Add More Files</button>
             </div>
         </div>
 
@@ -42,6 +42,7 @@
         function showUploadSection() {
             document.querySelector('.upload-section').style.display = 'block';
             document.getElementById('downloadSection').style.display = 'none';
+            document.querySelector('.file-upload').style.display = 'block';
             document.getElementById('pdfInput').value = ''; // Clear file input
         }
 
@@ -49,15 +50,17 @@
             console.log('Showing download section');
             const uploadSection = document.querySelector('.upload-section');
             const downloadSection = document.getElementById('downloadSection');
-            // Keep the upload-section visible but hide the file-upload div
             document.querySelector('.file-upload').style.display = 'none';
             downloadSection.style.display = 'block';
             document.getElementById('pdfInput').value = ''; // Clear file input
-
         }
 
-        // Initialize with upload section visible
-        showUploadSection();
+        // Initialize based on whether we have files
+        if (uploadedFiles.length === 0) {
+            showUploadSection();
+        } else {
+            showDownloadSection();
+        }
 
         function renderFileList() {
             const fileList = document.getElementById('fileList');
@@ -68,16 +71,38 @@
                 </div>
             `).join('');
             
+            // Only show upload section if no files
             if (uploadedFiles.length === 0) {
                 showUploadSection();
+            } else {
+                showDownloadSection();
             }
         }
 
-        function deleteFile(fileName) {
-            uploadedFiles = uploadedFiles.filter(file => file.name !== fileName);
-            renderFileList();
-            showUploadSection();
+        async function deleteFile(fileName) {
+            try {
+                const response = await fetch('/delete', {
+                    method: 'DELETE',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ filename: fileName })
+                });
+                
+                if (response.ok) {
+                    uploadedFiles = uploadedFiles.filter(file => file.name !== fileName);
+                    renderFileList();
+                    addMessage(`${fileName} deleted successfully`, 'bot')
+                } else {
+                    const error = await response.json();
+                    throw new Error(error.error || 'Error deleting file');
+                }
+            } catch (error) {
+                console.error('Error deleting file:', error);
+                addMessage('Error deleting file: ' + error.message, 'bot');
+            }
         }
+        
 
         async function uploadPDF() {
             const loading = document.getElementById('uploadLoading');
@@ -105,10 +130,9 @@
                     uploadedFiles = [...uploadedFiles, ...files];
                     renderFileList();
                     try {
-                        showDownloadSection();
                         addMessage('PDFs uploaded and processed successfully', 'bot');
                     } catch (error) {
-                        console.error('Error showing download section:', error);
+                        console.error('Error:', error);
                         addMessage('Error showing uploaded files', 'bot');
                     }
                 } else {
