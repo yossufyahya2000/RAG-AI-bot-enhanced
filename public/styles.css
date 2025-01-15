@@ -20,7 +20,7 @@ body {
 
 .container {
     max-width: 3000px;
-    margin: 0 15%;
+    margin: 0 10%;
     padding: 20px;
     flex: 1;
     display: flex;
@@ -202,7 +202,7 @@ button:hover {
 
 @media (max-width: 768px) {
     .container {
-        margin: 0 0;
+        margin: 0 3%;
         padding: 10px;
     }
 }
