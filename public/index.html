@@ -101,7 +101,7 @@
             messageDiv.className = `message ${sender}-message`;
             
             const messageContent = document.createElement('div');
-            messageContent.textContent = text;
+            messageContent.innerHTML = text.replace(/\n/g, '<br>');
             messageDiv.appendChild(messageContent);
             
             const timestamp = document.createElement('div');
@@ -110,7 +110,11 @@
             messageDiv.appendChild(timestamp);
             
             chatContainer.appendChild(messageDiv);
-            chatContainer.scrollTop = chatContainer.scrollHeight;
+            // Scroll the entire page to the bottom
+            window.scrollTo({
+                top: document.body.scrollHeight,
+                behavior: 'smooth'
+            });
         }
 
         // Handle file drag and drop

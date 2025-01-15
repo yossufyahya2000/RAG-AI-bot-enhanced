@@ -86,11 +86,9 @@ h1 {
 .chat-container {
     flex: 1;
     padding: 1rem;
-    overflow-y: auto;
     display: flex;
     flex-direction: column;
     gap: 0.75rem;
-    max-height: 60vh;
 }
 
 .message {

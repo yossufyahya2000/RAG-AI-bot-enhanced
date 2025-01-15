@@ -31,7 +31,7 @@ const upload = multer({ storage: storage });
 
 // Initialize Gemini AI
 const genAI = new GoogleGenerativeAI(process.env.GOOGLE_API_KEY);
-const model = genAI.getGenerativeModel({ model: "gemini-pro" });
+const model = genAI.getGenerativeModel({ model: "gemini-1.5-pro" });
 
 // Custom embeddings class using Gemini
 class GeminiEmbeddings extends Embeddings {
