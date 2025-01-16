@@ -146,7 +146,7 @@
             }
         }
 
-        async function askQuestion() {
+        function askQuestion() {
             const questionInput = document.getElementById('questionInput');
             const question = questionInput.value.trim();
             
@@ -155,25 +155,62 @@
             addMessage(question, 'user');
             questionInput.value = '';
 
-            try {
-                const response = await fetch('/ask', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify({ question })
-                });
+            // Create a new message element for the streaming response
+            const chatContainer = document.getElementById('chatContainer');
+            const messageDiv = document.createElement('div');
+            messageDiv.className = 'message bot-message';
+            const messageContent = document.createElement('div');
+            messageDiv.appendChild(messageContent);
+            const timestamp = document.createElement('div');
+            timestamp.className = 'message-timestamp';
+            timestamp.textContent = new Date().toLocaleTimeString();
+            messageDiv.appendChild(timestamp);
+            chatContainer.appendChild(messageDiv);
+
+            // Use fetch with ReadableStream for streaming response
+            fetch('/ask', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ question })
+            })
+            .then(response => {
+                const reader = response.body.getReader();
+                const decoder = new TextDecoder();
                 
-                const result = await response.json();
-                if (response.ok) {
-                    addMessage(result.answer, 'bot');
-                } else {
-                    addMessage('Error: ' + result.error, 'bot');
+                function readStream() {
+                    reader.read().then(({ done, value }) => {
+                        if (done) {
+                            messageContent.textContent += ' (Stream ended)';
+                            return;
+                        }
+                        
+                        const chunk = decoder.decode(value);
+                        try {
+                            const data = JSON.parse(chunk);
+                            if (data.chunk) {
+                                messageContent.textContent += data.chunk;
+                                // Scroll to bottom
+                                window.scrollTo({
+                                    top: document.body.scrollHeight,
+                                    behavior: 'smooth'
+                                });
+                            }
+                        } catch (error) {
+                            console.error('Error parsing chunk:', error);
+                        }
+                        
+                        readStream();
+                    });
                 }
-            } catch (error) {
+                
+                readStream();
+            })
+            .catch(error => {
                 console.error('Error:', error);
-                addMessage('Error processing question', 'bot');
-            }
+                messageContent.textContent = 'Error processing question';
+            });
         }
 
         function addMessage(text, sender) {

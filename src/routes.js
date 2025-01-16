@@ -116,12 +116,17 @@ app.post('/ask', async (req, res) => {
     // Create context from relevant documents
     const context = relevantDocs.map(doc => doc.pageContent).join('\n');
     
-    // Generate response using Gemini
+    // Generate streaming response using Gemini
     const prompt = `Context: ${context}\n\nQuestion: ${question}\n\nAnswer:`;
-    const result = await model.generateContent(prompt);
-    const response = result.response.text();
+    res.setHeader('Content-Type', 'application/json');
+    res.setHeader('Cache-Control', 'no-cache');
+    res.setHeader('Connection', 'keep-alive');
     
-    res.json({ answer: response });
+    const result = await model.generateContentStream(prompt);
+    for await (const chunk of result.stream) {
+      const chunkText = chunk.text();
+      res.write(JSON.stringify({ chunk: chunkText }) + '\n');
+    }
   } catch (error) {
     console.error('Error processing question:', error);
     res.status(500).json({ error: 'Error processing question' });
