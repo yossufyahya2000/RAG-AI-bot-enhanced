@@ -21,7 +21,7 @@ app.get('/', (res) => {
 app.post('/upload', upload.array('pdf'), async (req, res) => {
     try {
         if (!req.session.fileDataMap) {
-            req.session.fileDataMap = new Map();
+            req.session.fileDataMap = {};
         }
         if (!req.session.vectorStore) {
             req.session.vectorStore = null;
@@ -49,7 +49,7 @@ app.post('/upload', upload.array('pdf'), async (req, res) => {
             }
 
             // Store the document data with the filename as key
-            req.session.fileDataMap.set(file.originalname, docs);
+            req.session.fileDataMap[file.originalname] = docs;
             allDocs = [...allDocs, ...docs];
             totalPages += docs.length;
 
@@ -83,15 +83,15 @@ app.delete('/delete', async (req, res) => {
     try {
         const { filename } = req.body;
         
-        if (!filename || !req.session.fileDataMap.has(filename)) {
+        if (!filename || !req.session.fileDataMap[filename]) {
             return res.status(404).json({ error: 'File not found' });
         }
-
+        
         // Remove from file data map
-        req.session.fileDataMap.delete(filename);
-
-        // Get all remaining documents from the map
-        const remainingDocs = Array.from(req.session.fileDataMap.values()).flat();
+        delete req.session.fileDataMap[filename];
+        
+        // Get all remaining documents
+        const remainingDocs = Object.values(req.session.fileDataMap).flat();
         req.session.documents = remainingDocs;
 
         res.json({ message: `${filename} deleted successfully` });
@@ -101,17 +101,19 @@ app.delete('/delete', async (req, res) => {
     }
 });
 
-// Handle questions
 app.post('/ask', async (req, res) => {
   try {
     const { question } = req.body;
     
-    if (!req.session.documents || req.session.documents.length === 0) {
+    // Get all documents from all PDFs in fileDataMap
+    const allDocuments = Object.values(req.session.fileDataMap).flat();
+    
+    if (!allDocuments || allDocuments.length === 0) {
       return res.status(400).json({ error: 'Please upload a PDF first' });
     }
     
-    // Recreate vector store from session documents
-    const vectorStore = await MemoryVectorStore.fromDocuments(req.session.documents, embeddings);
+    // Create vector store with all documents
+    const vectorStore = await MemoryVectorStore.fromDocuments(allDocuments, embeddings);
     
     // Search for relevant documents across all files
     const relevantDocs = await vectorStore.similaritySearch(question, 3);
@@ -135,6 +137,7 @@ app.post('/ask', async (req, res) => {
     res.status(500).json({ error: 'Error processing question' });
   }
 });
+
 
 // Reset session documents on page refresh
 app.get('/reset-session', (req, res) => {
