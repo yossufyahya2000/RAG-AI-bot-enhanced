@@ -142,8 +142,9 @@ app.post('/ask', async (req, res) => {
 // Reset session documents on page refresh
 app.get('/reset-session', (req, res) => {
     req.session.documents = null;
-    res.json({ message: 'Session reset successfully' });
-});
+    req.session.fileDataMap = {};
+    req.session.vectorStore = null;
+    res.json({ message: 'Session reset successfully' });});
 
 export default app;
 
