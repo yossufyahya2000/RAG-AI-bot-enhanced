@@ -146,6 +146,20 @@
             }
         }
 
+        function formatMessage(text) {
+            // First handle bold text
+            text = text.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+            
+            // Then handle bullet points - add a line break before and wrap in span
+            text = text.replace(/([^\n])\* /g, '$1\n* ');
+            text = text.replace(/^\* (.+)$/gm, '<span class="bullet-point">• $1</span>');
+            
+            // Convert regular line breaks
+            text = text.replace(/\n/g, '<br>');
+            
+            return text;
+        }
+
         function askQuestion() {
             const questionInput = document.getElementById('questionInput');
             const question = questionInput.value.trim();
@@ -155,11 +169,11 @@
             addMessage(question, 'user');
             questionInput.value = '';
 
-            // Create a new message element for the streaming response
             const chatContainer = document.getElementById('chatContainer');
             const messageDiv = document.createElement('div');
             messageDiv.className = 'message bot-message';
             const messageContent = document.createElement('div');
+            messageContent.className = 'message-content';
             messageDiv.appendChild(messageContent);
             const timestamp = document.createElement('div');
             timestamp.className = 'message-timestamp';
@@ -167,7 +181,8 @@
             messageDiv.appendChild(timestamp);
             chatContainer.appendChild(messageDiv);
 
-            // Use fetch with ReadableStream for streaming response
+            let accumulatedText = '';
+
             fetch('/ask', {
                 method: 'POST',
                 headers: {
@@ -181,17 +196,14 @@
                 
                 function readStream() {
                     reader.read().then(({ done, value }) => {
-                        if (done) {
-                            messageContent.textContent += ' (Stream ended)';
-                            return;
-                        }
+                        if (done) return;
                         
                         const chunk = decoder.decode(value);
                         try {
                             const data = JSON.parse(chunk);
                             if (data.chunk) {
-                                messageContent.textContent += data.chunk;
-                                // Scroll to bottom
+                                accumulatedText += data.chunk;
+                                messageContent.innerHTML = formatMessage(accumulatedText);
                                 window.scrollTo({
                                     top: document.body.scrollHeight,
                                     behavior: 'smooth'
@@ -211,9 +223,7 @@
                 console.error('Error:', error);
                 messageContent.textContent = 'Error processing question';
             });
-        }
-
-        function addMessage(text, sender) {
+        }        function addMessage(text, sender) {
             const chatContainer = document.getElementById('chatContainer');
             const messageDiv = document.createElement('div');
             messageDiv.className = `message ${sender}-message`;

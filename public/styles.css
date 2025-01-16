@@ -206,3 +206,20 @@ button:hover {
         padding: 10px;
     }
 }
+  .message-content {
+      white-space: pre-wrap;
+      word-wrap: break-word;
+      line-height: 1.6;
+  }
+
+  .message-content strong {
+      font-weight: 700;
+      font-size: 1.05em;
+      color: var(--text-color);
+  }
+
+  .message-content .bullet-point {
+      display: block;
+      padding-left: 1em;
+      margin: 0.5em 0;
+  }
