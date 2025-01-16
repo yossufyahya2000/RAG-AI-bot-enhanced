@@ -262,6 +262,13 @@
                 askQuestion();
             }
         });
+
+        window.addEventListener('load', () => {
+            fetch('/reset-session')
+                .then(response => response.json())
+                .then(data => console.log('Session reset:', data));
+        });
+
     </script>
 </body>
 </html>

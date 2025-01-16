@@ -6,22 +6,27 @@ import { PDFLoader } from "@langchain/community/document_loaders/fs/pdf";
 import { MemoryVectorStore } from "langchain/vectorstores/memory";
 import fs from 'fs';
 import { join } from 'path';
-
-// Initialize Vector Store and file data mapping
-let vectorStore;
-const fileDataMap = new Map();
+import { sessionConfig } from './sessionConfig.js';
 
 app.use(express.json());
 app.use(express.static('public'));
+app.use(sessionConfig);
 
 // Serve the HTML interface
-app.get('/', (req, res) => {
-  res.sendFile(join(__dirname, '../public/index.html'));
+app.get('/', (res) => {
+    res.sendFile(join(__dirname, '../public/index.html'));
 });
 
 // Handle PDF upload
 app.post('/upload', upload.array('pdf'), async (req, res) => {
     try {
+        if (!req.session.fileDataMap) {
+            req.session.fileDataMap = new Map();
+        }
+        if (!req.session.vectorStore) {
+            req.session.vectorStore = null;
+        }
+
         const files = req.files;
         if (!files || files.length === 0) {
             return res.status(400).json({ error: 'No PDF files uploaded' });
@@ -44,7 +49,7 @@ app.post('/upload', upload.array('pdf'), async (req, res) => {
             }
 
             // Store the document data with the filename as key
-            fileDataMap.set(file.originalname, docs);
+            req.session.fileDataMap.set(file.originalname, docs);
             allDocs = [...allDocs, ...docs];
             totalPages += docs.length;
 
@@ -54,11 +59,8 @@ app.post('/upload', upload.array('pdf'), async (req, res) => {
 
         console.log('Updating vector store...');
         // Create or update vector store with all documents
-        if (vectorStore) {
-            await vectorStore.addDocuments(allDocs);
-        } else {
-            vectorStore = await MemoryVectorStore.fromDocuments(allDocs, embeddings);
-        }
+        // Store documents in session and recreate vector store when needed
+        req.session.documents = allDocs;
         console.log('Vector store updated successfully');
 
         res.json({ message: 'PDFs processed successfully', pages: totalPages });
@@ -81,18 +83,16 @@ app.delete('/delete', async (req, res) => {
     try {
         const { filename } = req.body;
         
-        if (!filename || !fileDataMap.has(filename)) {
+        if (!filename || !req.session.fileDataMap.has(filename)) {
             return res.status(404).json({ error: 'File not found' });
         }
 
         // Remove from file data map
-        fileDataMap.delete(filename);
+        req.session.fileDataMap.delete(filename);
 
         // Get all remaining documents from the map
-        const remainingDocs = Array.from(fileDataMap.values()).flat();
-
-        // Recreate vector store with remaining documents
-        vectorStore = await MemoryVectorStore.fromDocuments(remainingDocs, embeddings);
+        const remainingDocs = Array.from(req.session.fileDataMap.values()).flat();
+        req.session.documents = remainingDocs;
 
         res.json({ message: `${filename} deleted successfully` });
     } catch (error) {
@@ -106,9 +106,12 @@ app.post('/ask', async (req, res) => {
   try {
     const { question } = req.body;
     
-    if (!vectorStore) {
+    if (!req.session.documents || req.session.documents.length === 0) {
       return res.status(400).json({ error: 'Please upload a PDF first' });
     }
+    
+    // Recreate vector store from session documents
+    const vectorStore = await MemoryVectorStore.fromDocuments(req.session.documents, embeddings);
     
     // Search for relevant documents across all files
     const relevantDocs = await vectorStore.similaritySearch(question, 3);
@@ -133,4 +136,12 @@ app.post('/ask', async (req, res) => {
   }
 });
 
+// Reset session documents on page refresh
+app.get('/reset-session', (req, res) => {
+    req.session.documents = null;
+    res.json({ message: 'Session reset successfully' });
+});
+
 export default app;
+
+
