@@ -168,7 +168,7 @@ function askQuestion() {
                     if (data.chunk) {
                         // Hide loading spinner and show message content on first chunk
                         if (accumulatedText === '') {
-                            messageDiv.querySelector('.loading-spinner').style.display = 'none';
+                            messageDiv.querySelector('.text-loading-spinner').style.display = 'none';
                             messageContent.style.display = 'block';
                         }
                         accumulatedText += data.chunk;
