@@ -147,17 +147,34 @@
         }
 
         function formatMessage(text) {
-            // First handle bold text
-            text = text.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+            // Process special formatting only if text contains markers
+            if (!text.includes('```') && !text.includes('**') && !text.includes('* ')) {
+                return text;
+            }
             
-            // Then handle bullet points - add a line break before and wrap in span
-            text = text.replace(/([^\n])\* /g, '$1\n* ');
-            text = text.replace(/^\* (.+)$/gm, '<span class="bullet-point">• $1</span>');
+            let formattedText = text;
             
-            // Convert regular line breaks
-            text = text.replace(/\n/g, '<br>');
+            // Handle code blocks
+            if (text.includes('```')) {
+                formattedText = formattedText.replace(/```([\s\S]*?)```/g, (match, code) => {
+                    return `<pre><code>${code.trim()}</code></pre>`;
+                });
+            }
             
-            return text;
+            // Handle bold text
+            if (text.includes('**')) {
+                formattedText = formattedText.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+            }
+            
+            // Handle bullet points
+            if (text.includes('* ')) {
+                formattedText = formattedText.replace(/^\* (.*?)$/gm, '<span class="bullet-point">• $1</span>');
+            }
+            
+            // Handle line breaks last
+            formattedText = formattedText.replace(/\n/g, '<br>');
+            
+            return formattedText;
         }
 
         function askQuestion() {

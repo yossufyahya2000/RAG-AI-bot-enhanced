@@ -36,48 +36,34 @@ app.post('/upload', upload.array('pdf'), async (req, res) => {
         let allDocs = [];
 
         for (const file of files) {
-            console.log('Processing PDF:', file.path);
+            try {
+                console.log('Processing PDF:', file.path);
+                const loader = new PDFLoader(file.path);
+                const docs = await loader.load();
+                
+                if (docs.length === 0) {
+                    throw new Error(`No content extracted from PDF: ${file.originalname}`);
+                }
 
-            // Load and process the PDF
-            const loader = new PDFLoader(file.path);
-            console.log('Loading PDF contents...');
-            const docs = await loader.load();
-            console.log(`Loaded ${docs.length} pages from PDF`);
-
-            if (docs.length === 0) {
-                throw new Error(`No content extracted from PDF: ${file.originalname}`);
+                req.session.fileDataMap[file.originalname] = docs;
+                allDocs = [...allDocs, ...docs];
+                totalPages += docs.length;
+            } finally {
+                // Ensure file cleanup happens whether processing succeeds or fails
+                if (fs.existsSync(file.path)) {
+                    fs.unlinkSync(file.path);
+                    console.log(`Deleted file: ${file.path}`);
+                }
             }
+        }
 
-            // Store the document data with the filename as key
-            req.session.fileDataMap[file.originalname] = docs;
-            allDocs = [...allDocs, ...docs];
-            totalPages += docs.length;
-
-            // Clean up uploaded file after processing
-            fs.unlinkSync(join('/tmp/uploads', file.originalname));
-          }
-
-        console.log('Updating vector store...');
-        // Create or update vector store with all documents
-        // Store documents in session and recreate vector store when needed
         req.session.documents = allDocs;
-        console.log('Vector store updated successfully');
-
         res.json({ message: 'PDFs processed successfully', pages: totalPages });
     } catch (error) {
         console.error('Error processing PDF:', error);
-        // Clean up files if there was an error
-        if (req.files) {
-            req.files.forEach(file => {
-                if (fs.existsSync(file.path)) {
-                    fs.unlinkSync(file.path);
-                }
-            });
-        }
         res.status(500).json({ error: error.message || 'Error processing PDF' });
     }
 });
-
 // Handle PDF deletion
 app.delete('/delete', async (req, res) => {
     try {

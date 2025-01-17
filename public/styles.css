@@ -206,20 +206,34 @@ button:hover {
         padding: 10px;
     }
 }
-  .message-content {
-      white-space: pre-wrap;
-      word-wrap: break-word;
-      line-height: 1.6;
-  }
+.message-content {
+    white-space: pre-wrap;
+    word-wrap: break-word;
+    line-height: 1.6;
+    font-size: 1rem;
+}
 
-  .message-content strong {
-      font-weight: 700;
-      font-size: 1.05em;
-      color: var(--text-color);
-  }
+.message-content pre {
+    background: #f8fafc;
+    border-radius: 8px;
+    padding: 1rem;
+    margin: 0.5rem 0;
+    overflow-x: auto;
+}
 
-  .message-content .bullet-point {
-      display: block;
-      padding-left: 1em;
-      margin: 0.5em 0;
-  }
+.message-content code {
+    font-family: 'Consolas', 'Monaco', monospace;
+    font-size: 0.9rem;
+}
+
+.message-content strong {
+    font-weight: 600;
+    color: #1e293b;
+}
+
+.message-content .bullet-point {
+    display: block;
+    padding-left: 1rem;
+    margin: 0.25rem 0;
+}
+
