@@ -200,7 +200,12 @@ function askQuestion() {
     })
     .catch(error => {
         console.error('Error:', error);
-        messageContent.textContent = 'Error processing question';
+        // Hide the loading spinner
+        messageDiv.querySelector('.text-loading-spinner').style.display = 'none';
+        // Show the message content
+        messageContent.style.display = 'block';
+        // Display user-friendly error message
+        messageContent.textContent = 'An error occurred. Please refresh the page and try again.';
     });
 }
 
