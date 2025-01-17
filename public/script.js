@@ -116,13 +116,23 @@ function formatMessage(text) {
 }
 
 function askQuestion() {
+
     const questionInput = document.getElementById('questionInput');
     const question = questionInput.value.trim();
-    
+
     if (!question) return;
 
     addMessage(question, 'user');
     questionInput.value = '';
+
+    if (uploadedFiles.length === 0) {
+        addMessage('Please upload PDFs first', 'bot');
+        questionInput.value = '';
+        return;
+    }
+
+    
+    
 
     const chatContainer = document.getElementById('chatContainer');
     const messageDiv = document.createElement('div');
