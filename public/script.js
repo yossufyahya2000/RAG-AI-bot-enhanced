@@ -127,12 +127,21 @@ function askQuestion() {
     const chatContainer = document.getElementById('chatContainer');
     const messageDiv = document.createElement('div');
     messageDiv.className = 'message bot-message';
+    
+    // Create loading spinner
+    const loadingSpinner = document.createElement('div');
+    loadingSpinner.className = 'text-loading-spinner';
+    
     const messageContent = document.createElement('div');
     messageContent.className = 'message-content';
-    messageDiv.appendChild(messageContent);
+    messageContent.style.display = 'none'; // Hide initially
+    
     const timestamp = document.createElement('div');
     timestamp.className = 'message-timestamp';
     timestamp.textContent = new Date().toLocaleTimeString();
+    
+    messageDiv.appendChild(loadingSpinner);
+    messageDiv.appendChild(messageContent);
     messageDiv.appendChild(timestamp);
     chatContainer.appendChild(messageDiv);
 
@@ -157,6 +166,11 @@ function askQuestion() {
                 try {
                     const data = JSON.parse(chunk);
                     if (data.chunk) {
+                        // Hide loading spinner and show message content on first chunk
+                        if (accumulatedText === '') {
+                            messageDiv.querySelector('.loading-spinner').style.display = 'none';
+                            messageContent.style.display = 'block';
+                        }
                         accumulatedText += data.chunk;
                         messageContent.innerHTML = formatMessage(accumulatedText);
                         window.scrollTo({
