@@ -102,7 +102,7 @@ app.post('/ask', async (req, res) => {
     const vectorStore = await MemoryVectorStore.fromDocuments(allDocuments, embeddings);
     
     // Search for relevant documents across all files
-    const relevantDocs = await vectorStore.similaritySearch(question, 3);
+    const relevantDocs = await vectorStore.similaritySearch(question, 2);
     
     // Create context from relevant documents
     const context = relevantDocs.map(doc => doc.pageContent).join('\n');
@@ -118,6 +118,7 @@ app.post('/ask', async (req, res) => {
       const chunkText = chunk.text();
       res.write(JSON.stringify({ chunk: chunkText }) + '\n');
     }
+    res.end();
   } catch (error) {
     console.error('Error processing question:', error);
     res.status(500).json({ error: 'Error processing question' });
