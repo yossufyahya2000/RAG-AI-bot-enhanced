@@ -2,7 +2,7 @@
 
 A Retrieval-Augmented Generation (RAG) AI bot that uses vector similarity search to provide contextually relevant responses.
 
-## Test from the link
+## Test it from this link
 https://3ynyeac3jv.us-east-1.awsapprunner.com/
 
 ## Features
