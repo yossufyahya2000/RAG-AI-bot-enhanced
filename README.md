@@ -2,6 +2,9 @@
 
 A Retrieval-Augmented Generation (RAG) AI bot that uses vector similarity search to provide contextually relevant responses.
 
+## Test from the link
+https://3ynyeac3jv.us-east-1.awsapprunner.com/
+
 ## Features
 - **Intelligent Question Answering**: Leverages vector similarity search to provide accurate, context-aware responses
 - **Dynamic Context Retrieval**: Retrieves and utilizes the most relevant documents for each query (configurable count)
@@ -19,7 +22,7 @@ A Retrieval-Augmented Generation (RAG) AI bot that uses vector similarity search
 
 1. Clone the repository:
 ```bash
-git clone https://github.com/yourusername/rag-ai-bot-enhanced.git
+git clone https://github.com/yossufyahya2000/RAG-AI-bot-enhanced.git
 cd rag-ai-bot-enhanced
 ```
 
@@ -80,7 +83,7 @@ Ask a question and get a contextually relevant response.
 
 MIT License
 
-Copyright (c) 2025 Your Name
+Copyright (c) 2025 Yossuf Yahia
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
