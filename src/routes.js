@@ -106,7 +106,7 @@ app.post('/ask', async (req, res) => {
     const vectorStore = await MemoryVectorStore.fromDocuments(allDocuments, embeddings);
     
     // Search for relevant chunks across all files
-    const relevantDocs = await vectorStore.similaritySearch(question, 5);
+    const relevantDocs = await vectorStore.similaritySearch(question, 3);
     
     // Create context from relevant chunks, maintaining document structure
     const context = relevantDocs
