@@ -4,6 +4,7 @@ import { upload } from './uploadConfig.js';
 import { model, embeddings } from './gemini.js';
 import { PDFLoader } from "@langchain/community/document_loaders/fs/pdf";
 import { MemoryVectorStore } from "langchain/vectorstores/memory";
+import { splitDocuments } from './textSplitter.js';
 import fs from 'fs';
 import { join } from 'path';
 import { sessionConfig } from './sessionConfig.js';
@@ -45,9 +46,12 @@ app.post('/upload', upload.array('pdf'), async (req, res) => {
                     throw new Error(`No content extracted from PDF: ${file.originalname}`);
                 }
 
-                req.session.fileDataMap[file.originalname] = docs;
-                allDocs = [...allDocs, ...docs];
-                totalPages += docs.length;
+                // Split documents into chunks
+                const chunkedDocs = await splitDocuments(docs);
+                
+                req.session.fileDataMap[file.originalname] = chunkedDocs;
+                allDocs = [...allDocs, ...chunkedDocs];
+                totalPages += chunkedDocs.length;
             } finally {
                 // Ensure file cleanup happens whether processing succeeds or fails
                 if (fs.existsSync(file.path)) {
@@ -101,11 +105,17 @@ app.post('/ask', async (req, res) => {
     // Create vector store with all documents
     const vectorStore = await MemoryVectorStore.fromDocuments(allDocuments, embeddings);
     
-    // Search for relevant documents across all files
-    const relevantDocs = await vectorStore.similaritySearch(question, 2);
+    // Search for relevant chunks across all files
+    const relevantDocs = await vectorStore.similaritySearch(question, 5);
     
-    // Create context from relevant documents
-    const context = relevantDocs.map(doc => doc.pageContent).join('\n');
+    // Create context from relevant chunks, maintaining document structure
+    const context = relevantDocs
+      .map(doc => {
+        const source = doc.metadata.source || 'Unknown';
+        const page = doc.metadata.page || 0;
+        return `[Source: ${source}, Page: ${page}]\n${doc.pageContent}`;
+      })
+      .join('\n\n');
     
     // Generate streaming response using Gemini
     const prompt = `Context: ${context}\n\nQuestion: ${question}\n\nAnswer:`;

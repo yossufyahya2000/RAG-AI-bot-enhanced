@@ -14,12 +14,40 @@ class GeminiEmbeddings extends Embeddings {
   }
 
   async embedDocuments(texts) {
-    return Promise.all(texts.map(text => this.embedQuery(text)));
+    const batchSize = 10; // Process 10 chunks at a time
+    const batches = [];
+    
+    for (let i = 0; i < texts.length; i += batchSize) {
+      batches.push(texts.slice(i, i + batchSize));
+    }
+
+    const results = [];
+    for (const batch of batches) {
+      try {
+        const embeddings = await Promise.all(
+          batch.map(text => this.embedQuery(text))
+        );
+        results.push(...embeddings);
+      } catch (error) {
+        console.error('Error embedding batch:', error);
+        throw error;
+      }
+    }
+    return results;
   }
 
-  async embedQuery(text) {
-    const embeddingResult = await this.embeddingModel.embedContent(text);
-    return embeddingResult.embedding.values;
+  async embedQuery(text, retries = 3) {
+    try {
+      const embeddingResult = await this.embeddingModel.embedContent(text);
+      return embeddingResult.embedding.values;
+    } catch (error) {
+      if (retries > 0) {
+        console.log(`Retrying embedding (${retries} attempts remaining)...`);
+        await new Promise(resolve => setTimeout(resolve, 1000)); // Wait 1 second
+        return this.embedQuery(text, retries - 1);
+      }
+      throw error;
+    }
   }
 }
 
