@@ -1,21 +1,7 @@
 import multer from 'multer';
-import fs from 'fs';
 
-// Configure multer to store files in uploads directory
-const storage = multer.diskStorage({
-  destination: function (req, file, cb) {
-    const uploadPath = '/tmp/uploads';
-    if (!fs.existsSync(uploadPath)) {
-      fs.mkdirSync(uploadPath, { recursive: true });
-    }
-    cb(null, uploadPath);
-  },
-  filename: function (req, file, cb) {
-    // Add timestamp to prevent filename conflicts
-    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
-    cb(null, uniqueSuffix + '-' + file.originalname);
-  }
-});
+// Configure multer to store files in memory
+const storage = multer.memoryStorage();
 
 const fileFilter = (req, file, cb) => {
   if (file.mimetype === 'application/pdf') {

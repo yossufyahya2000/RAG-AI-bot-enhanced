@@ -164,7 +164,6 @@ app.post('/upload', upload.array('pdf', 10), async (req, res) => {
     let totalPages = 0;
     
     try {
-        // Get conversation for system message
         const { conversationId } = await getConversationHistory(req.sessionId);
         const isFirst = await isFirstFileUpload(req.sessionId);
 
@@ -178,8 +177,13 @@ app.post('/upload', upload.array('pdf', 10), async (req, res) => {
 
         for (const file of files) {
             try {
-                console.log('Processing PDF:', file.path);
-                const loader = new PDFLoader(file.path);
+                console.log('Processing PDF:', file.originalname);
+                
+                // Convert Buffer to Blob
+                const blob = new Blob([file.buffer], { type: 'application/pdf' });
+                
+                // Load PDF from Blob
+                const loader = new PDFLoader(blob);
                 const docs = await loader.load();
                 
                 if (docs.length === 0) {
@@ -206,11 +210,9 @@ app.post('/upload', upload.array('pdf', 10), async (req, res) => {
                     'assistant',
                     `Processed "${file.originalname}" with ${chunkedDocs.length} pages.`
                 );
-            } finally {
-                // Cleanup temporary file
-                if (fs.existsSync(file.path)) {
-                    fs.unlinkSync(file.path);
-                }
+            } catch (error) {
+                console.error(`Error processing ${file.originalname}:`, error);
+                throw error;
             }
         }
 

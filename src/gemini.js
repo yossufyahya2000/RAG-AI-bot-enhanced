@@ -111,7 +111,8 @@ class GeminiEmbeddings extends Embeddings {
 
 Question: ${query}
 
-Please provide a general response based on your knowledge.`;
+Please provide a general response based on your knowledge.
+give your responces a good Text formatting `;
       } else {
         const context = relevantDocs
           .map(doc => doc.pageContent)
