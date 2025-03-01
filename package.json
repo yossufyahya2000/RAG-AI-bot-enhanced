@@ -10,6 +10,7 @@
     "@google/generative-ai": "^0.2.1",
     "@langchain/community": "^0.3.24",
     "@langchain/core": "^0.3.30",
+    "@supabase/supabase-js": "^2.39.0",
     "dotenv": "^16.4.7",
     "express": "^4.21.2",
     "express-session": "^1.18.1",

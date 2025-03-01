@@ -82,19 +82,33 @@ async function uploadPDF() {
 
         const response = await fetch('/upload', {
             method: 'POST',
-            body: formData
+            body: formData,
+            headers: sessionId ? {
+                'X-Session-Id': sessionId
+            } : {}
         });
         
         const result = await response.json();
         if (response.ok) {
             uploadedFiles = [...uploadedFiles, ...files];
             renderFileList();
-            try {
-                addMessage('PDFs uploaded and processed successfully', 'bot');
-            } catch (error) {
-                console.error('Error:', error);
-                addMessage('Error showing uploaded files', 'bot');
+            
+            // Store session ID if it's the first upload
+            if (result.sessionId) {
+                sessionId = result.sessionId;
+                localStorage.setItem('sessionId', sessionId);
             }
+
+            // Add welcome message to chat if it's first upload
+            if (result.isFirstUpload) {
+                const chatContainer = document.getElementById('chatContainer');
+                if (chatContainer) {
+                    chatContainer.innerHTML = ''; // Clear any existing messages
+                }
+            }
+
+            // The welcome message will be automatically added by the server
+            // through the conversation system
         } else {
             throw new Error(result.error || 'Error uploading PDFs');
         }
@@ -115,68 +129,100 @@ function formatMessage(text) {
     return marked.parse(text);
 }
 
-function askQuestion() {
+// Store session ID in localStorage
+let sessionId = localStorage.getItem('sessionId');
 
+// Function to make authenticated requests
+async function makeRequest(url, options = {}) {
+    if (sessionId) {
+        options.headers = {
+            ...options.headers,
+            'X-Session-Id': sessionId
+        };
+    }
+    return fetch(url, options);
+}
+
+// Initialize session on page load
+window.addEventListener('load', async () => {
+    const response = await makeRequest('/reset-session', { method: 'POST' });
+    const data = await response.json();
+    sessionId = data.sessionId;
+    localStorage.setItem('sessionId', sessionId);
+});
+
+let isProcessing = false;
+
+async function askQuestion() {
+    if (isProcessing) return;
+    
     const questionInput = document.getElementById('questionInput');
     const question = questionInput.value.trim();
 
     if (!question) return;
+    
+    try {
+        isProcessing = true;
 
-    addMessage(question, 'user');
-    questionInput.value = '';
-
-    if (uploadedFiles.length === 0) {
-        addMessage('Please upload PDFs first', 'bot');
+        // Add user message first
+        addMessage(question, 'user');
         questionInput.value = '';
-        return;
-    }
 
-    
-    
+        if (uploadedFiles.length === 0) {
+            addMessage('Please upload PDFs first', 'bot');
+            return;
+        }
+        
+        const chatContainer = document.getElementById('chatContainer');
+        const messageDiv = document.createElement('div');
+        messageDiv.className = 'message bot-message';
+        
+        const loadingSpinner = document.createElement('div');
+        loadingSpinner.className = 'text-loading-spinner';
+        
+        const messageContent = document.createElement('div');
+        messageContent.className = 'message-content';
+        messageContent.style.display = 'none';
+        
+        const timestamp = document.createElement('div');
+        timestamp.className = 'message-timestamp';
+        timestamp.textContent = new Date().toLocaleTimeString();
+        
+        messageDiv.appendChild(loadingSpinner);
+        messageDiv.appendChild(messageContent);
+        messageDiv.appendChild(timestamp);
+        chatContainer.appendChild(messageDiv);
 
-    const chatContainer = document.getElementById('chatContainer');
-    const messageDiv = document.createElement('div');
-    messageDiv.className = 'message bot-message';
-    
-    // Create loading spinner
-    const loadingSpinner = document.createElement('div');
-    loadingSpinner.className = 'text-loading-spinner';
-    
-    const messageContent = document.createElement('div');
-    messageContent.className = 'message-content';
-    messageContent.style.display = 'none'; // Hide initially
-    
-    const timestamp = document.createElement('div');
-    timestamp.className = 'message-timestamp';
-    timestamp.textContent = new Date().toLocaleTimeString();
-    
-    messageDiv.appendChild(loadingSpinner);
-    messageDiv.appendChild(messageContent);
-    messageDiv.appendChild(timestamp);
-    chatContainer.appendChild(messageDiv);
+        let accumulatedText = '';
 
-    let accumulatedText = '';
+        const response = await fetch('/ask', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-Session-Id': sessionId
+            },
+            body: JSON.stringify({ question })
+        });
 
-    fetch('/ask', {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ question })
-    })
-    .then(response => {
+        if (!response.ok) {
+            const error = await response.json();
+            throw new Error(error.error || 'Error processing question');
+        }
+
         const reader = response.body.getReader();
         const decoder = new TextDecoder();
-        
-        function readStream() {
-            reader.read().then(({ done, value }) => {
-                if (done) return;
-                
-                const chunk = decoder.decode(value);
+
+        while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+
+            const chunk = decoder.decode(value);
+            const lines = chunk.split('\n').filter(line => line.trim());
+
+            for (const line of lines) {
                 try {
-                    const data = JSON.parse(chunk);
+                    const data = JSON.parse(line);
                     if (data.chunk) {
-                        // Hide loading spinner and show message content on first chunk
                         if (accumulatedText === '') {
                             messageDiv.querySelector('.text-loading-spinner').style.display = 'none';
                             messageContent.style.display = 'block';
@@ -191,22 +237,15 @@ function askQuestion() {
                 } catch (error) {
                     console.error('Error parsing chunk:', error);
                 }
-                
-                readStream();
-            });
+            }
         }
-        
-        readStream();
-    })
-    .catch(error => {
-        console.error('Error:', error);
-        // Hide the loading spinner
-        messageDiv.querySelector('.text-loading-spinner').style.display = 'none';
-        // Show the message content
-        messageContent.style.display = 'block';
-        // Display user-friendly error message
-        messageContent.textContent = 'An error occurred. Please refresh the page and try again.';
-    });
+
+    } catch (error) {
+        console.error('Error processing question:', error);
+        addMessage('Error processing question: ' + error.message, 'bot');
+    } finally {
+        isProcessing = false;
+    }
 }
 
 function addMessage(text, sender) {
@@ -259,8 +298,9 @@ document.getElementById('questionInput').addEventListener('keypress', function(e
     }
 });
 
-window.addEventListener('load', () => {
-    fetch('/reset-session')
-        .then(response => response.json())
-        .then(data => console.log('Session reset:', data));
+// Add event listeners
+document.getElementById('questionInput').addEventListener('keypress', (e) => {
+    if (e.key === 'Enter') {
+        askQuestion();
+    }
 });
