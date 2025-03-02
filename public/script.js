@@ -217,7 +217,7 @@ async function askQuestion() {
             if (done) break;
 
             const chunk = decoder.decode(value);
-            const lines = chunk.split('\n').filter(line => line.trim());
+            const lines = chunk.split('\n').filter(Boolean);
 
             for (const line of lines) {
                 try {
