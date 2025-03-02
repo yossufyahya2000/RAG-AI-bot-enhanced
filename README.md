@@ -3,8 +3,8 @@
 A Retrieval-Augmented Generation (RAG) AI bot that uses vector similarity search to provide contextually relevant responses.
 
 ## Test it from this link
-https://3ynyeac3jv.us-east-1.awsapprunner.com/
-
+[https://3ynyeac3jv.us-east-1.awsapprunner.com/
+](https://rag-ai-bot-enhanced.vercel.app/)
 ## Features
 - **Intelligent Question Answering**: Leverages vector similarity search to provide accurate, context-aware responses
 - **Dynamic Context Retrieval**: Retrieves and utilizes the most relevant documents for each query (configurable count)
