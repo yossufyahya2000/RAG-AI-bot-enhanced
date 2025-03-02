@@ -2,11 +2,13 @@
   "name": "rag-chatbot",
   "private": true,
   "type": "module",
+  "engines": {
+    "node": ">=18.0.0"
+  },
   "scripts": {
     "start": "node index.js",
     "build": "echo 'No build step needed'",
-    "vercel-build": "echo 'Build step complete'",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "vercel-build": "echo 'Build step complete'"
   },
   "dependencies": {
     "@google/generative-ai": "^0.2.1",
