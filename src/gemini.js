@@ -108,11 +108,12 @@ class GeminiEmbeddings extends Embeddings {
       let finalPrompt;
       if (relevantDocs.length === 0) {
         finalPrompt = `You are a helpful AI assistant. Please answer the following question to the best of your ability:
+        
+        ${conversationContext ? `Previous conversation:\n${conversationContext}\n` : ''}
 
-Question: ${query}
+        Question: ${query}
 
-Please provide a general response based on your knowledge.
-give your responces a good Text formatting `;
+        Please provide a general response based on your knowledge. and tell the user that there is no context available for this question. `;
       } else {
         const context = relevantDocs
           .map(doc => doc.pageContent)
@@ -123,17 +124,17 @@ give your responces a good Text formatting `;
           .join('\n');
 
         finalPrompt = `You are a helpful AI assistant. Use the following context and conversation history to answer the user's question.
-Be concise and specific in your response.
+        Be concise and specific in your response.
 
-Context from documents:
-${context}
+        Context from documents:
+        ${context}
 
-${conversationContext ? `Previous conversation:\n${conversationContext}\n` : ''}
+        ${conversationContext ? `Previous conversation:\n${conversationContext}\n` : ''}
 
-Current question: ${query}
+        Current question: ${query}
 
-Answer:`;
-      }
+        Answer:`;
+              }
 
       const result = await model.generateContentStream(finalPrompt);
       return result;
