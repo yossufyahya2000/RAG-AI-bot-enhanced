@@ -113,7 +113,8 @@ class GeminiEmbeddings extends Embeddings {
 
         Question: ${query}
 
-        Please provide a general response based on your knowledge. and tell the user that there is no context available for this question. `;
+        Please provide a general response based on your knowledge. and tell the user that there is no context available for this question.
+        give a good text formatting to your response `;
       } else {
         const context = relevantDocs
           .map(doc => doc.pageContent)
@@ -125,6 +126,7 @@ class GeminiEmbeddings extends Embeddings {
 
         finalPrompt = `You are a helpful AI assistant. Use the following context and conversation history to answer the user's question.
         Be concise and specific in your response.
+        give a good text formatting to your response 
 
         Context from documents:
         ${context}
