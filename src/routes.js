@@ -303,14 +303,8 @@ app.post('/ask', async (req, res) => {
 app.post('/reset-session', async (req, res) => {
     try {
         if (req.sessionId) {
-            // Clear the vector store
+            // Only clear the vector store
             await embeddings.clearVectorStore();
-            
-            // Delete old session from Supabase
-            await supabase
-                .from('sessions')
-                .delete()
-                .eq('id', req.sessionId);
         }
 
         // Create new session
