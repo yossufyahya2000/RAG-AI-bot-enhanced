@@ -5,7 +5,10 @@ import { supabase } from './supabaseClient.js';
 
 // Initialize Gemini AI
 const genAI = new GoogleGenerativeAI(process.env.GOOGLE_API_KEY);
-const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
+const model = genAI.getGenerativeModel({ 
+  model: "gemini-2.0-flash",
+  temperature: 0.2
+});
 
 class GeminiEmbeddings extends Embeddings {
   constructor(genAI) {
@@ -118,7 +121,6 @@ class GeminiEmbeddings extends Embeddings {
             document_id: result.document_id
           }
         }));
-      console.log('Processed results:', processedResults);
       return processedResults;
     } catch (error) {
       console.error('Error in similarity search:', error);
@@ -126,23 +128,8 @@ class GeminiEmbeddings extends Embeddings {
     }
   }
 
-  async generateResponse(prompt, retries = 2) {
-    try {
-      const result = await model.generateContent(prompt);
-      const response = await result.response;
-      return response.text();
-    } catch (error) {
-      if (retries > 0) {
-        console.log(`Retrying response generation (${retries} attempts remaining)...`);
-        await new Promise(resolve => setTimeout(resolve, 1000));
-        return this.generateResponse(prompt, retries - 1);
-      }
-      console.error('Response generation error:', error);
-      throw new Error(`Failed to generate response: ${error.message}`);
-    }
-  }
 
-  async generateStreamingResponse(query, conversationHistory = [], k = 9, sessionId) {
+  async generateStreamingResponse(query, conversationHistory = [], k = 7, sessionId) {
     try {
       // Search for relevant documents using similarity search
       const relevantDocs = await this.similaritySearch(query, k, sessionId);
