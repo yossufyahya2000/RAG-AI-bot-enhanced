@@ -55,28 +55,63 @@ create index on document_chunks (document_id);
 create index on messages (conversation_id);
 create index on conversations (session_id);
 
--- Function to search document chunks by embedding similarity
+-- Enhanced function to search document chunks with better similarity matching
 create or replace function search_document_chunks(
     query_embedding vector(768),
     similarity_threshold float,
-    max_results int
+    max_results int,
+    session_document_ids uuid[]
 )
 returns table (
     id uuid,
     content text,
-    similarity float
+    similarity float,
+    chunk_index integer,
+    document_id uuid,
+    metadata jsonb
 )
 language plpgsql
 as $$
 begin
     return query
+    with ranked_chunks as (
+        select
+            dc.id,
+            dc.content,
+            dc.chunk_index,
+            dc.document_id,
+            dc.metadata,
+            1 - (dc.embedding <=> query_embedding) as similarity,
+            -- Add position weight to favor consecutive chunks
+            row_number() over (
+                partition by dc.document_id 
+                order by dc.chunk_index
+            ) as chunk_position
+        from document_chunks dc
+        where dc.document_id = any(session_document_ids)
+    ),
+    context_chunks as (
+        select
+            rc.*,
+            -- Include similarity scores from adjacent chunks
+            avg(rc.similarity) over (
+                partition by rc.document_id
+                order by rc.chunk_index
+                rows between 1 preceding and 1 following
+            ) as context_score
+        from ranked_chunks rc
+        where rc.similarity > similarity_threshold
+    )
     select
-        document_chunks.id,
-        document_chunks.content,
-        1 - (document_chunks.embedding <=> query_embedding) as similarity
-    from document_chunks
-    where 1 - (document_chunks.embedding <=> query_embedding) > similarity_threshold
-    order by document_chunks.embedding <=> query_embedding
+        cc.id,
+        cc.content,
+        -- Combine direct similarity with context score
+        (cc.similarity * 0.7 + cc.context_score * 0.3) as similarity,
+        cc.chunk_index,
+        cc.document_id,
+        cc.metadata
+    from context_chunks cc
+    order by (cc.similarity * 0.7 + cc.context_score * 0.3) desc
     limit max_results;
 end;
 $$;

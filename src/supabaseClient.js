@@ -16,12 +16,16 @@ export async function initSession() {
     return data.id;
 }
 
-export async function storeDocumentChunks(sessionId, filename, chunks) {
+export async function storeDocumentChunks(sessionId, filename, chunks, pageCount = null) {
     try {
-        // Insert document
+        // First, insert the document and get its ID
         const { data: doc, error: docError } = await supabase
             .from('documents')
-            .insert({ session_id: sessionId, filename })
+            .insert({
+                session_id: sessionId,
+                filename: filename,
+                page_count: pageCount || chunks.length
+            })
             .select()
             .single();
         
@@ -30,9 +34,7 @@ export async function storeDocumentChunks(sessionId, filename, chunks) {
             throw docError;
         }
 
-        console.log('Document stored:', doc.id); // Debug log
-
-        // Insert chunks with embeddings
+        // Then, insert all chunks with the document_id reference
         const chunksToInsert = chunks.map((chunk, index) => ({
             document_id: doc.id,
             content: chunk.pageContent,
@@ -50,7 +52,6 @@ export async function storeDocumentChunks(sessionId, filename, chunks) {
             throw chunksError;
         }
 
-        console.log(`Stored ${chunksToInsert.length} chunks for document ${doc.id}`); // Debug log
         return doc.id;
     } catch (error) {
         console.error('Error in storeDocumentChunks:', error);
@@ -58,16 +59,13 @@ export async function storeDocumentChunks(sessionId, filename, chunks) {
     }
 }
 
-export async function searchSimilarChunks(embedding, threshold = 0.7, limit = 3) {
-    const { data, error } = await supabase.rpc(
-        'search_document_chunks',
-        {
-            query_embedding: embedding,
-            similarity_threshold: threshold,
-            max_results: limit
-        }
-    );
 
+export async function getSessionDocuments(sessionId) {
+    const { data, error } = await supabase
+        .from('documents')
+        .select('filename, page_count')
+        .eq('session_id', sessionId);
+    
     if (error) throw error;
     return data;
 }
@@ -98,7 +96,7 @@ export async function storeMessage(conversationId, role, content) {
     return data;
 }
 
-export async function getConversationHistory(sessionId, limit = 10) {
+export async function getConversationHistory(sessionId) {
     const { data: conversation, error: convError } = await supabase
         .from('conversations')
         .select('id')
@@ -107,25 +105,19 @@ export async function getConversationHistory(sessionId, limit = 10) {
         .limit(1)
         .single();
 
-    if (convError) throw convError;
+    if (convError) {
+        // If no conversation exists, create one
+        const newConversation = await createConversation(sessionId);
+        return { conversationId: newConversation.id, messages: [] };
+    }
 
     const { data: messages, error: msgError } = await supabase
         .from('messages')
         .select('role, content')
         .eq('conversation_id', conversation.id)
         .order('created_at', { ascending: false })
-        .limit(limit);
+        .limit(10);
 
     if (msgError) throw msgError;
     return { conversationId: conversation.id, messages: messages.reverse() };
-}
-
-export async function getSessionDocuments(sessionId) {
-    const { data, error } = await supabase
-        .from('documents')
-        .select('filename, page_count')
-        .eq('session_id', sessionId);
-    
-    if (error) throw error;
-    return data;
 }

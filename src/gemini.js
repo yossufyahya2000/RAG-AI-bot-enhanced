@@ -1,7 +1,7 @@
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import { Embeddings } from "@langchain/core/embeddings";
-import { MemoryVectorStore } from "langchain/vectorstores/memory";
 import { Document } from "@langchain/core/documents";
+import { supabase } from './supabaseClient.js';
 
 // Initialize Gemini AI
 const genAI = new GoogleGenerativeAI(process.env.GOOGLE_API_KEY);
@@ -12,7 +12,6 @@ class GeminiEmbeddings extends Embeddings {
     super();
     this.genAI = genAI;
     this.embeddingModel = this.genAI.getGenerativeModel({ model: "models/text-embedding-004" });
-    this.vectorStore = new MemoryVectorStore(this);
   }
 
   async embedDocuments(texts) {
@@ -59,25 +58,68 @@ class GeminiEmbeddings extends Embeddings {
     }
   }
 
-  async addDocuments(documents) {
-    const docs = documents.map(doc => {
-      return new Document({
-        pageContent: doc.pageContent,
-        metadata: {
-          source: doc.metadata?.source || '',
-          page: doc.metadata?.page || 0
-        }
-      });
-    });
-
-    await this.vectorStore.addDocuments(docs);
-    return docs.length;
-  }
-
-  async similaritySearch(query, k = 5) {
+  async similaritySearch(query, k = 5, sessionId) {
     try {
-      const results = await this.vectorStore.similaritySearch(query, k);
-      return results;
+      if (!sessionId) {
+        throw new Error('Session ID is required for similarity search');
+      }
+
+      const queryEmbedding = await this.embedQuery(query);
+      
+      // Get document IDs for the current session
+      const { data: sessionDocs, error: sessionError } = await supabase
+        .from('documents')
+        .select('id')
+        .eq('session_id', sessionId);
+
+      if (sessionError) throw sessionError;
+      
+      if (!sessionDocs || sessionDocs.length === 0) {
+        return [];
+      }
+
+      const documentIds = sessionDocs.map(doc => doc.id);
+
+      // Use enhanced search_document_chunks function
+      const { data: results, error } = await supabase.rpc(
+        'search_document_chunks',
+        {
+          query_embedding: queryEmbedding,
+          similarity_threshold: 0.3, // Slightly lower threshold to catch more context
+          max_results: k + 2, // Get extra results for context
+          session_document_ids: documentIds
+        }
+      );
+
+      if (error) throw error;
+
+      // Group results by document and sort by chunk_index
+      const groupedResults = results.reduce((acc, result) => {
+        if (!acc[result.document_id]) {
+          acc[result.document_id] = [];
+        }
+        acc[result.document_id].push(result);
+        return acc;
+      }, {});
+
+      // Process each document's chunks to include context
+      const processedResults = Object.values(groupedResults)
+        .flatMap(chunks => {
+          chunks.sort((a, b) => a.chunk_index - b.chunk_index);
+          return chunks;
+        })
+        .slice(0, k) // Limit to original k after processing
+        .map(result => new Document({
+          pageContent: result.content,
+          metadata: {
+            ...result.metadata,
+            similarity: result.similarity,
+            chunk_index: result.chunk_index,
+            document_id: result.document_id
+          }
+        }));
+      console.log('Processed results:', processedResults);
+      return processedResults;
     } catch (error) {
       console.error('Error in similarity search:', error);
       return [];
@@ -100,10 +142,13 @@ class GeminiEmbeddings extends Embeddings {
     }
   }
 
-  async generateStreamingResponse(query, conversationHistory = [], k = 5) {
+  async generateStreamingResponse(query, conversationHistory = [], k = 9, sessionId) {
     try {
-      // Search for relevant documents
-      const relevantDocs = await this.similaritySearch(query, k);
+      // Search for relevant documents using similarity search
+      const relevantDocs = await this.similaritySearch(query, k, sessionId);
+      const conversationContext = conversationHistory
+          .map(msg => `${msg.role}: ${msg.content}`)
+          .join('\n');
       
       let finalPrompt;
       if (relevantDocs.length === 0) {
@@ -113,20 +158,15 @@ class GeminiEmbeddings extends Embeddings {
 
         Question: ${query}
 
-        Please provide a general response based on your knowledge. and tell the user that there is no context available for this question.
-        give a good text formatting to your response `;
+        Please provide a general response based on your knowledge and tell the user that there is no context available for this question.
+        Give a good text formatting to your response`;
       } else {
         const context = relevantDocs
           .map(doc => doc.pageContent)
           .join('\n\n');
 
-        const conversationContext = conversationHistory
-          .map(msg => `${msg.role}: ${msg.content}`)
-          .join('\n');
-
         finalPrompt = `You are a helpful AI assistant. Use the following context and conversation history to answer the user's question.
-        Be concise and specific in your response.
-        give a good text formatting to your response 
+        Give a good text formatting to your response.
 
         Context from documents:
         ${context}
@@ -136,7 +176,7 @@ class GeminiEmbeddings extends Embeddings {
         Current question: ${query}
 
         Answer:`;
-              }
+      }
 
       const result = await model.generateContentStream(finalPrompt);
       return result;
@@ -144,10 +184,6 @@ class GeminiEmbeddings extends Embeddings {
       console.error('Streaming response generation error:', error);
       throw new Error(`Failed to generate streaming response: ${error.message}`);
     }
-  }
-
-  async clearVectorStore() {
-    this.vectorStore = new MemoryVectorStore(this);
   }
 }
 
